@@ -21,12 +21,19 @@ class MP3RequestHandler(http.server.BaseHTTPRequestHandler):
             self.send_header('Content-Disposition', 'inline')
             self.end_headers()
             
-            with open(selected_files[current_file_index], 'rb') as f:
-                while True:
-                    data = f.read(1024)
-                    if not data:
-                        break
-                    self.wfile.write(data)
+            # Стартовая точка для файла
+            current_file = current_file_index
+
+            while True:
+                with open(selected_files[current_file], 'rb') as f:
+                    while True:
+                        data = f.read(1024)
+                        if not data:
+                            break
+                        self.wfile.write(data)
+                
+                # Переключаемся на следующую песню
+                current_file = (current_file + 1) % len(selected_files)
         else:
             self.send_error(404, "File Not Found: %s" % self.path)
 
@@ -38,7 +45,7 @@ def start_server():
         return
     
     Handler = MP3RequestHandler
-    httpd = socketserver.TCPServer(("", PORT), Handler)
+    httpd = socketserver.ThreadingTCPServer(("", PORT), Handler)
     
     server_thread = threading.Thread(target=httpd.serve_forever)
     server_thread.daemon = True
@@ -58,9 +65,15 @@ def stop_server():
 def select_files():
     global selected_files
     selected_files = filedialog.askopenfilenames(filetypes=[("MP3 files", "*.mp3")])
+    
     if selected_files:
+        # Сортируем файлы по имени
+        sorted_files = sorted(selected_files, key=lambda f: os.path.basename(f).lower())
+        
+        selected_files = list(sorted_files)  # Обновляем глобальную переменную
+        
         file_list.delete(0, tk.END)  # Очищаем текущий список
-        for file in selected_files:
+        for file in sorted_files:
             file_list.insert(tk.END, os.path.basename(file))
 
 def switch_song():
